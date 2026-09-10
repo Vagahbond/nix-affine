@@ -12,7 +12,7 @@
       },
       "original": {
         "owner": "toeverything",
-        "ref": "canary",
+        "ref": "cfda4858d550c46ec1cd0b574801d7becdd6625b",
         "repo": "affine",
         "type": "github"
       }

@@ -4,14 +4,13 @@
   cacert,
   cargo,
   cmake,
-  fetchFromGitHub,
   lib,
   nodejs_24,
   openssl,
   pkg-config,
   rustPlatform,
   stdenv,
-  yarn-berry_4,
+  mYarn,
   prisma-engines_6,
   # inputs,
   rustc,
@@ -23,16 +22,30 @@ let
   # Upstream AFFiNE pins `.yarnrc.yml` to yarn 4.18.0 (see .yarn/releases/yarn-4.18.0.cjs),
   # while nixpkgs' yarn-berry_4 defaults to 4.14.1. That version gap breaks the builtin
   # `compat/typescript` patch for the `@typescript/typescript6` alias (missing lib/_tsc.js).
-  # Rebuild yarn-berry from the matching upstream tag so patch/fetch behavior matches.
-  mYarn = yarn-berry_4.overrideAttrs (_: {
-    version = "4.18.0";
-    src = fetchFromGitHub {
-      owner = "yarnpkg";
-      repo = "berry";
-      tag = "@yarnpkg/cli/4.18.0";
-      hash = "sha256-pO89wh17cW9/RGKjo70yiefr+9nlJAQs4ZEdUnzdgQM=";
-    };
-  });
+
+  arch =
+    if stdenv.hostPlatform.system == "x86_64-linux" then
+      {
+        short = "x64";
+        triple = "x86_64-unknown-linux-gnu";
+      }
+    else if stdenv.hostPlatform.system == "aarch64-linux" then
+      {
+        short = "arm64";
+        triple = "aarch64-unknown-linux-gnu";
+      }
+    else if stdenv.hostPlatform.system == "x86_64-darwin" then
+      {
+        short = "x64";
+        triple = "x86_64-apple-darwin";
+      }
+    else if stdenv.hostPlatform.system == "aarch64-darwin" then
+      {
+        short = "arm64";
+        triple = "aarch64-apple-darwin";
+      }
+    else
+      throw "Unsupported system: ${stdenv.hostPlatform.system}";
 
 in
 stdenv.mkDerivation (finalAttrs: {
@@ -51,7 +64,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   offlineCache = mYarn.fetchYarnBerryDeps {
     inherit (finalAttrs) src missingHashes;
-    hash = "sha256-wEx7l28G6uC6ZwU6NCrsJCsekaXi5Gm/rEXAajQ5gSk=";
+    hash = "sha256-lQI/QjeDAIKGnUJw/8KAIxv273wkhzjVRzTYEQWtR8s=";
   };
 
   # https://github.com/NixOS/nixpkgs/issues/254369#issuecomment-2080460150
@@ -91,21 +104,17 @@ stdenv.mkDerivation (finalAttrs: {
 
     runHook postConfigure
   '';
-  /*
-        mkdir -p "$TMPDIR/yarn-cache"
-        ln -s $yarnOfflineCache/yarn-offline-cache $TMPDIR/yarn-cache
-        export YARN_CACHE_FOLDER="$TMPDIR/yarn-cache"
 
-        yarn install --immutable --mode=skip-build
-
-      '';
+  /**
+    server-native.node import is failing on my mac, likely because of some Rosetta confusion: built for x64 but ARM NodeJS runtime, or something like that. Too annoying to fix, especially when no one is ever going to run this on a M mac right ? RIGHT ?
   */
-
   buildPhase = ''
     runHook preBuild
 
 
-     yarn affine @affine/server-native build
+     yarn affine @affine/server-native build 
+
+     # cp packages/backend/native/server-native.node packages/backend/native/server-native.${arch.short}.node
 
      # cp packages/backend/native/server-native.node packages/backend/native/server-native.arm64.node
      # cp packages/backend/native/server-native.node packages/backend/native/server-native.armv7.node
