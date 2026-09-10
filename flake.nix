@@ -2,27 +2,49 @@
   description = "Nix module to self-host Affine";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+    affine = {
+      url = "github:toeverything/affine/canary";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      affine,
+      ...
+    }:
     let
-      forAllSupportedSystems = function: nixpkgs.lib.genAttrs [ "x86_64-linux" ]
-        (system: function (import nixpkgs {
-          inherit system;
-          overlays = [ self.overlays.default ];
-        }));
+      forAllSupportedSystems =
+        systems: function:
+        nixpkgs.lib.genAttrs systems (
+          system:
+          function (
+            import nixpkgs {
+              inherit system;
+            }
+          )
+        );
     in
     {
-      formatter = forAllSupportedSystems (pkgs: pkgs.nixpkgs-fmt);
+      formatter = forAllSupportedSystems [ "aarch64-darwin" "x86_64-linux" ] (pkgs: pkgs.nixpkgs-fmt);
 
-      overlays.default = final: prev: {
-        affine-server = final.callPackage ./nix/packages { };
-      };
+      packages = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (pkgs: rec {
+        affine-server = pkgs.callPackage ./package.nix { inherit affine; };
 
-      packages = forAllSupportedSystems (pkgs: {
-        affine-server = pkgs.affine-server;
-        default = pkgs.affine-server;
+        default = affine-server;
       });
+
+      nixosModules.default = _: {
+        nixpkgs.overlays = [ self.overlays.default ];
+        imports = [ ./module.nix ];
+      };
+      devShells = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (pkgs: {
+        default = import ./shell.nix { inherit self pkgs; };
+      });
+
     };
 }
