@@ -57,7 +57,7 @@ stdenv.mkDerivation (finalAttrs: {
   # https://github.com/NixOS/nixpkgs/issues/254369#issuecomment-2080460150
   cargoDeps = rustPlatform.fetchCargoVendor {
     inherit (finalAttrs) src;
-    hash = "sha256-z3PWCHMvof87vi8AJJ73DjvlSJCDvMxUGD52v1eRl2M=";
+    hash = "sha256-vD4Tq5bWmyArYv67+znJPB0E9Gu7vKTFtKpaB4w72s4=";
   };
 
   nativeBuildInputs = [
