@@ -45,7 +45,17 @@
     {
       formatter = forAllSupportedSystems [ "aarch64-darwin" "x86_64-linux" ] (pkgs: pkgs.nixpkgs-fmt);
 
-      packages = forAllSupportedSystems [ "x86_64-linux" ] (pkgs: rec {
+      packages = forAllSupportedSystems [ "x86_64-linux" "aarch64-linux" ] (pkgs: rec {
+        server-native = pkgs.callPackage ./package/server-native.nix {
+          inherit affine;
+          mYarn = mYarn pkgs;
+        };
+
+        server = pkgs.callPackage ./package/server.nix {
+          inherit affine self;
+          mYarn = mYarn pkgs;
+        };
+
         affine-server = pkgs.callPackage ./package.nix {
           inherit affine;
           mYarn = mYarn pkgs;
