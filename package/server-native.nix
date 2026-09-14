@@ -71,7 +71,6 @@ stdenv.mkDerivation (finalAttrs:
     runHook preBuild
 
     yarn affine @affine/server-native build 
-
     runHook postBuild
   '';
 
