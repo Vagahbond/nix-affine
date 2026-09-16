@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
     affine = {
-      url = "github:toeverything/affine?ref=cfda4858d550c46ec1cd0b574801d7becdd6625b";
+      url = "github:toeverything/affine/v0.27.4";
       flake = false;
     };
   };
@@ -45,16 +45,7 @@
     {
       formatter = forAllSupportedSystems [ "aarch64-darwin" "x86_64-linux" ] (pkgs: pkgs.nixpkgs-fmt);
 
-      packages = forAllSupportedSystems [ "x86_64-linux" "aarch64-linux" ] (pkgs: rec {
-        server-native = pkgs.callPackage ./package/server-native.nix {
-          inherit affine;
-          mYarn = mYarn pkgs;
-        };
-
-        server = pkgs.callPackage ./package/server.nix {
-          inherit affine self;
-          mYarn = mYarn pkgs;
-        };
+      packages = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (pkgs: rec {
 
         affine-server = pkgs.callPackage ./package.nix {
           inherit affine;

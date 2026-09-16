@@ -3,16 +3,16 @@
     "affine": {
       "flake": false,
       "locked": {
-        "lastModified": 1788966064,
-        "narHash": "sha256-zwwAsXNC1Q2JdtM0Z/a+lebTngxnZJWxyRmEle4vMdk=",
+        "lastModified": 1786939290,
+        "narHash": "sha256-MuzQkiiMUrmFVzHCA5l5hzXm7wA7ChPaKzcrJtc1R3Y=",
         "owner": "toeverything",
         "repo": "affine",
-        "rev": "cfda4858d550c46ec1cd0b574801d7becdd6625b",
+        "rev": "b4c8548c09da21b2898443559a5b846f0ccf5dd8",
         "type": "github"
       },
       "original": {
         "owner": "toeverything",
-        "ref": "cfda4858d550c46ec1cd0b574801d7becdd6625b",
+        "ref": "v0.27.4",
         "repo": "affine",
         "type": "github"
       }

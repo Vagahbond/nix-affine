@@ -54,23 +54,25 @@ stdenv.mkDerivation (
 
     nodeModulesCache = mYarn.fetchYarnBerryDeps {
       inherit (finalAttrs) src missingHashes;
-      hash = "sha256-lQI/QjeDAIKGnUJw/8KAIxv273wkhzjVRzTYEQWtR8s=";
+      hash = "sha256-qOsLgyEluCX0ivMGSfIf8OZf/oA/LiFvmNe80JG7FW8=";
     };
 
     cargoDeps = rustPlatform.fetchCargoVendor {
       inherit (finalAttrs) src;
-      hash = "sha256-vD4Tq5bWmyArYv67+znJPB0E9Gu7vKTFtKpaB4w72s4=";
+      hash = "sha256-fQY4DmkbZQljXQzWRNLzaYxdPoenWTbOtjBvqT/HFYE=";
     };
   in
   {
     pname = "affine-server";
     version = "0.27.4";
-    BUILD_TYPE = "production";
+    BUILD_TYPE = "stable";
 
     dontUseCmakeConfigure = true;
 
     NODE_EXTRA_CA_CERTS = "${cacert}/etc/ssl/certs/ca-bundle.crt";
     SSL_CERT_FILE = "${cacert}/etc/ssl/certs/ca-bundle.crt";
+
+    GITHUB_SHA = affine.rev;
 
     src = affine;
 
@@ -107,8 +109,6 @@ stdenv.mkDerivation (
       export PRISMA_SCHEMA_ENGINE_BINARY=${prisma-engines_6}/bin/schema-engine
       export npm_config_nodedir=${nodejs}
 
-
-
       runHook postConfigure
     '';
 
@@ -118,19 +118,17 @@ stdenv.mkDerivation (
     buildPhase = ''
       runHook preBuild
 
+       yarn affine @affine/server-native build 
 
-       yarn affine @affine/server-native build -- --frozen 
 
-       # cp packages/backend/native/server-native.node packages/backend/native/server-native.${arch.short}.node
-
-       # cp packages/backend/native/server-native.node packages/backend/native/server-native.arm64.node
-       # cp packages/backend/native/server-native.node packages/backend/native/server-native.armv7.node
-       # cp packages/backend/native/server-native.node packages/backend/native/server-native.x64.node
+        # TODO: avoid this copy (won't build server without it...)
+       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.arm64.node
+       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.armv7.node
+       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.x64.node
 
        yarn affine @affine/server build
        yarn affine @affine/web build
        yarn affine @affine/admin build
-
 
        yarn workspace @affine/server build
 
@@ -148,12 +146,6 @@ stdenv.mkDerivation (
       cp -r ./packages/frontend/admin/dist $out/admin
       cp -r ./packages/backend/server/dist $out/server
 
-
-      echo "Installing"
-      ls
-
-      cp -r ./* $out/
-
       runHook postInstall
     '';
 
@@ -161,6 +153,7 @@ stdenv.mkDerivation (
       description = "A privacy-focused, local-first, open-source, and ready-to-use alternative for Notion & Miro.";
       homepage = "https://affine.pro";
       license = lib.licenses.mit;
+      maintainers = with lib.maintainers; [ vagahbond ];
     };
   }
 )
