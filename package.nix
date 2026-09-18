@@ -5,6 +5,7 @@
   cargo,
   cmake,
   lib,
+  makeWrapper,
   nodejs_24,
   openssl,
   pkg-config,
@@ -18,34 +19,6 @@
 }:
 let
   nodejs = nodejs_24;
-
-  # Upstream AFFiNE pins `.yarnrc.yml` to yarn 4.18.0 (see .yarn/releases/yarn-4.18.0.cjs),
-  # while nixpkgs' yarn-berry_4 defaults to 4.14.1. That version gap breaks the builtin
-  # `compat/typescript` patch for the `@typescript/typescript6` alias (missing lib/_tsc.js).
-
-  arch =
-    if stdenv.hostPlatform.system == "x86_64-linux" then
-      {
-        short = "x64";
-        triple = "x86_64-unknown-linux-gnu";
-      }
-    else if stdenv.hostPlatform.system == "aarch64-linux" then
-      {
-        short = "arm64";
-        triple = "aarch64-unknown-linux-gnu";
-      }
-    else if stdenv.hostPlatform.system == "x86_64-darwin" then
-      {
-        short = "x64";
-        triple = "x86_64-apple-darwin";
-      }
-    else if stdenv.hostPlatform.system == "aarch64-darwin" then
-      {
-        short = "arm64";
-        triple = "aarch64-apple-darwin";
-      }
-    else
-      throw "Unsupported system: ${stdenv.hostPlatform.system}";
 
 in
 stdenv.mkDerivation (
@@ -76,18 +49,24 @@ stdenv.mkDerivation (
 
     src = affine;
 
+    patches = [
+      ./patches/generate-graphql-schema-in-memory.patch
+    ];
+
     missingHashes = ./missing-hashes.json;
 
     offlineCache = nodeModulesCache;
 
     # https://github.com/NixOS/nixpkgs/issues/254369#issuecomment-2080460150
     inherit cargoDeps;
+
     nativeBuildInputs = [
       cargo
       cmake
       rustc
       mYarn
       mYarn.yarnBerryConfigHook
+      makeWrapper
       openssl
       nodejs
       pkg-config
@@ -107,7 +86,6 @@ stdenv.mkDerivation (
       export PRISMA_QUERY_ENGINE_BINARY=${prisma-engines_6}/bin/query-engine
       export PRISMA_QUERY_ENGINE_LIBRARY=${prisma-engines_6}/lib/libquery_engine.node
       export PRISMA_SCHEMA_ENGINE_BINARY=${prisma-engines_6}/bin/schema-engine
-      export npm_config_nodedir=${nodejs}
 
       runHook postConfigure
     '';
@@ -118,33 +96,57 @@ stdenv.mkDerivation (
     buildPhase = ''
       runHook preBuild
 
-       yarn affine @affine/server-native build 
+      yarn install 
 
 
-        # TODO: avoid this copy (won't build server without it...)
-       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.arm64.node
-       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.armv7.node
-       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.x64.node
+      yarn affine @affine/server-native build 
 
-       yarn affine @affine/server build
-       yarn affine @affine/web build
-       yarn affine @affine/admin build
+      # TODO: avoid this copy (won't build server without it...)
+      cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.arm64.node
+      cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.armv7.node
+      cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.x64.node
+
 
        yarn workspace @affine/server build
 
-       yarn workspace @affine/server prisma generate
+       yarn affine @affine/web build
+       yarn affine @affine/admin build
+       yarn affine @affine/mobile build
 
+       yarn workspaces focus @affine/server --production
+       yarn workspace @affine/server prisma generate
       runHook postBuild
     '';
 
     installPhase = ''
       runHook preInstall
 
-      mkdir -p $out
 
-      cp -r ./packages/frontend/apps/web/dist $out/web
-      cp -r ./packages/frontend/admin/dist $out/admin
-      cp -r ./packages/backend/server/dist $out/server
+
+      cp -r ./packages/backend/server $out
+
+      cp -r ./node_modules $out/
+      rm -rf $out/node_modules/@affine
+
+      cp -r ./packages/frontend/apps/web/dist $out/static
+      cp -r ./packages/frontend/admin/dist $out/static/admin
+      cp -r ./packages/frontend/apps/mobile/dist $out/static/mobile  
+
+      mkdir -p $out/bin
+
+      makeWrapper ${nodejs}/bin/node $out/bin/affine-server \
+        --chdir "$out" \
+        --add-flags "dist/main.js" \
+        --set-default NODE_ENV production \
+        --set-default PRISMA_QUERY_ENGINE_BINARY ${prisma-engines_6}/bin/query-engine \
+        --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prisma-engines_6}/lib/libquery_engine.node \
+        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/lib/libquery_engine.node \
+        ${lib.optionalString stdenv.isLinux "--suffix LD_LIBRARY_PATH : ${
+          lib.makeLibraryPath [
+            openssl
+            opus
+          ]
+        }"}
 
       runHook postInstall
     '';

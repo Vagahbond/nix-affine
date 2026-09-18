@@ -17,6 +17,7 @@ pkgs.mkShell {
     cmake
     nodejs
     update-missing-hashes
+    yarn
   ];
 
   env = {

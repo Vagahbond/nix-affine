@@ -1,7 +1,9 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
-
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.services.affine-server;
 
@@ -16,32 +18,17 @@ let
       null;
 
   staticEnvironment = {
-    AFFINE_SERVER_HOST = cfg.host;
-    AFFINE_SERVER_PORT = toString cfg.port;
-    AFFINE_SERVER_HTTPS = boolToString cfg.https;
-    AFFINE_SERVER_EXTERNAL_URL = externalUrl;
     AFFINE_CONFIG_PATH = "${cfg.dataDir}/config";
-    AFFINE_STORAGE_PATH = "${cfg.dataDir}/storage";
-    REDIS_SERVER_HOST = cfg.redis.host;
-    REDIS_SERVER_PORT = toString cfg.redis.port;
-  }
-  // optionalAttrs (databaseUrl != null) { DATABASE_URL = databaseUrl; }
-  // optionalAttrs cfg.mailer.enable {
-    AFFINE_MAILER_HOST = cfg.mailer.host;
-    AFFINE_MAILER_PORT = toString cfg.mailer.port;
-    AFFINE_MAILER_USER = cfg.mailer.user;
-    AFFINE_MAILER_SENDER = cfg.mailer.sender;
   }
   // cfg.extraEnvironment;
 
   needsRuntimeSecretsFile =
-    (cfg.database.passwordFile != null)
-    || (cfg.mailer.enable && cfg.mailer.passwordFile != null);
+    (cfg.database.passwordFile != null) || (cfg.mailer.enable && cfg.mailer.passwordFile != null);
 in
 {
   options.services.affine-server = import ./options.nix { inherit lib pkgs; };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     assertions = [
       {
         assertion = cfg.database.createLocally -> cfg.database.passwordFile == null;
@@ -53,97 +40,83 @@ in
       }
     ];
 
-    users.users = mkIf (cfg.user == "affine") {
-      affine = {
+    users = {
+      users.${cfg.user} = {
         isSystemUser = true;
-        group = cfg.group;
+        inherit (cfg) group;
         home = cfg.dataDir;
       };
+
+      groups.${cfg.group} = { };
     };
 
-    users.groups = mkIf (cfg.group == "affine") {
-      affine = { };
-    };
+    services = {
+      postgresql = lib.mkIf cfg.database.createLocally {
+        ensureDatabases = [ cfg.database.name ];
+        ensureUsers = [
+          {
+            name = cfg.database.user;
+            ensureDBOwnership = true;
+          }
+        ];
+      };
 
-    services.postgresql = mkIf cfg.database.createLocally {
-      enable = true;
-      ensureDatabases = [ cfg.database.name ];
-      ensureUsers = [
-        {
-          name = cfg.database.user;
-          ensureDBOwnership = true;
-        }
-      ];
-    };
+      nginx = lib.mkIf cfg.nginx.enable {
+        enable = true;
+        virtualHosts.${cfg.domain} = {
+          enableACME = cfg.nginx.enableACME;
+          forceSSL = cfg.nginx.enableACME;
 
-    services.redis.servers.affine = mkIf cfg.redis.createLocally {
-      enable = true;
-      port = cfg.redis.port;
-      bind = cfg.redis.host;
-    };
-
-    networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [ cfg.port ];
-
-    services.nginx = mkIf cfg.nginx.enable {
-      enable = true;
-      virtualHosts.${cfg.domain} = {
-        enableACME = cfg.nginx.enableACME;
-        forceSSL = cfg.nginx.enableACME;
-        locations."/" = {
-          proxyPass = "http://${cfg.host}:${toString cfg.port}";
-          proxyWebsockets = true;
+          locations."/" = {
+            proxyPass = "http://${cfg.host}:${toString cfg.port}";
+            proxyWebsockets = true;
+          };
         };
+      };
+
+      redis.servers.affine = lib.mkIf cfg.redis.createLocally {
+        enable = true;
+        port = cfg.redis.port;
+        bind = cfg.redis.host;
       };
     };
 
-    systemd.tmpfiles.rules = [
-      "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} - -"
-      "d ${cfg.dataDir}/config 0750 ${cfg.user} ${cfg.group} - -"
-      "d ${cfg.dataDir}/storage 0750 ${cfg.user} ${cfg.group} - -"
-    ];
+    networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [ cfg.port ];
 
-    systemd.services.affine-server = {
-      description = "AFFiNE self-hosted server";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" "postgresql.service" "redis-affine.service" ];
-        ++ optional cfg.database.createLocally "postgresql.service"
-        ++ optional cfg.redis.createLocally "redis-affine.service";
-      wants = optional cfg.database.createLocally "postgresql.service"
-        ++ optional cfg.redis.createLocally "redis-affine.service";
+    systemd = {
+      tmpfiles.rules = [
+        "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.dataDir}/config 0750 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.dataDir}/storage 0750 ${cfg.user} ${cfg.group} - -"
+      ];
 
-      environment = staticEnvironment;
+      services.affine-server = {
+        description = "AFFiNE self-hosted server";
+        wantedBy = [ "multi-user.target" ];
+        after = [
+          "network.target"
+          (lib.mkIf cfg.database.createLocally "postgresql.service")
+          (lib.mkIf cfg.redis.createLocally "redis-affine.service")
+        ];
+        wants = [
+          (lib.mkIf cfg.database.createLocally "postgresql.service")
+          (lib.mkIf cfg.redis.createLocally "redis-affine.service")
+        ];
 
-      serviceConfig = {
-        Type = "simple";
-        User = cfg.user;
-        Group = cfg.group;
-        WorkingDirectory = cfg.dataDir;
-        ExecStart = "${cfg.package}/bin/affine-server";
-        Restart = "on-failure";
-        RestartSec = "5s";
+        environment = staticEnvironment;
 
-        RuntimeDirectory = "affine-server";
-        RuntimeDirectoryMode = "0700";
-      }
-      // optionalAttrs needsRuntimeSecretsFile {
-        ExecStartPre = "${pkgs.writeShellScript "affine-server-secrets" ''
-          set -euo pipefail
-          out="/run/affine-server/secrets.env"
-          : > "$out"
-          ${optionalString (cfg.database.passwordFile != null) ''
-            password=$(cat ${escapeShellArg cfg.database.passwordFile})
-            echo "DATABASE_URL=postgresql://${cfg.database.user}:$password@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}" >> "$out"
-          ''}
-          ${optionalString (cfg.mailer.enable && cfg.mailer.passwordFile != null) ''
-            echo "AFFINE_MAILER_PASSWORD=$(cat ${escapeShellArg cfg.mailer.passwordFile})" >> "$out"
-          ''}
-          chmod 0600 "$out"
-        ''}";
-      }
-      // optionalAttrs (cfg.environmentFile != null || needsRuntimeSecretsFile) {
-        EnvironmentFile =
-          optional (cfg.environmentFile != null) cfg.environmentFile
-          ++ optional needsRuntimeSecretsFile "/run/affine-server/secrets.env";
+        serviceConfig = {
+          Type = "simple";
+          User = cfg.user;
+          Group = cfg.group;
+          WorkingDirectory = cfg.dataDir;
+          ExecStart = "${cfg.package}/bin/affine-server";
+          Restart = "on-failure";
+          RestartSec = "5s";
+
+          RuntimeDirectory = "affine-server";
+          RuntimeDirectoryMode = "0700";
+        };
       };
     };
   };

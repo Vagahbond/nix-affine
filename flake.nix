@@ -29,7 +29,7 @@
           )
         );
 
-      mYarn =
+      mkYarn =
         pkgs:
         pkgs.yarn-berry_4.overrideAttrs (_: {
           version = "4.18.0";
@@ -45,15 +45,46 @@
     {
       formatter = forAllSupportedSystems [ "aarch64-darwin" "x86_64-linux" ] (pkgs: pkgs.nixpkgs-fmt);
 
-      packages = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (pkgs: rec {
+      packages = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (
+        pkgs:
+        let
 
-        affine-server = pkgs.callPackage ./package.nix {
-          inherit affine;
-          mYarn = mYarn pkgs;
-        };
+          mYarn = mkYarn pkgs;
+          nodejs = pkgs.nodejs_24;
+          missingHashes = ./missing-hashes.json;
 
-        default = affine-server;
-      });
+          offlineCache = mYarn.fetchYarnBerryDeps {
+            src = ./.;
+            inherit missingHashes;
+            hash = "sha256-qOsLgyEluCX0ivMGSfIf8OZf/oA/LiFvmNe80JG7FW8=";
+          };
+
+          cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+            src = ./.;
+            hash = "sha256-fQY4DmkbZQljXQzWRNLzaYxdPoenWTbOtjBvqT/HFYE=";
+          };
+
+        in
+        rec {
+
+          server-native = pkgs.callPackage ./packages/server-native.nix {
+            inherit
+              affine
+              cargoDeps
+              offlineCache
+              mYarn
+              nodejs
+              missingHashes
+              ;
+          };
+
+          affine-server = pkgs.callPackage ./package.nix {
+            inherit affine mYarn;
+          };
+
+          default = affine-server;
+        }
+      );
 
       nixosModules.default = _: {
         nixpkgs.overlays = [ self.overlays.default ];
@@ -62,7 +93,7 @@
       devShells = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (pkgs: {
         default = import ./shell.nix {
           inherit self pkgs affine;
-          yarn = mYarn pkgs;
+          yarn = mkYarn pkgs;
         };
       });
 
