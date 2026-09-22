@@ -267,7 +267,7 @@ in
               externalUrl = mkOption {
                 type = types.str;
                 description = "External URL of the server";
-                default = "${if cfg.https then "https" else "http"}://${
+                default = "${if cfg.settings.server.https then "https" else "http"}://${
                   if cfg.nginx.enable then cfg.settings.server.host else "127.0.0.1"
                 }${if !cfg.nginx.enable then ":${toString cfg.settings.server.port}" else ""}";
                 example = "https://affine.example.com";
