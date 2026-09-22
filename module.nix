@@ -3,6 +3,7 @@
   pkgs,
   utils,
   config,
+  self,
   ...
 }:
 let
@@ -11,7 +12,14 @@ let
   redisServerName = "affine";
 in
 {
-  options.services.affine-server = import ./options.nix { inherit lib pkgs config; };
+  options.services.affine-server = import ./options.nix {
+    inherit
+      lib
+      pkgs
+      config
+      self
+      ;
+  };
 
   config = lib.mkIf cfg.enable {
     assertions = [
@@ -84,7 +92,7 @@ in
 
           wants = [
             (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
-            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
+            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}-redis".name)
           ];
 
           environment = {
