@@ -1,11 +1,12 @@
 {
-  config,
   lib,
   pkgs,
   utils,
+  self,
   ...
 }:
 let
+  inherit (self) config;
   cfg = config.services.affine-server;
 
   redisServerName = "redis-affine";

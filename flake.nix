@@ -82,9 +82,7 @@
         }
       );
 
-      nixosModules.default = _: {
-        imports = [ ./module.nix ];
-      };
+      nixosModules.default = import ./module.nix;
 
       devShells = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (pkgs: {
         default = import ./shell.nix {
