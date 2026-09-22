@@ -132,7 +132,7 @@ stdenv.mkDerivation (
 
       mkdir -p $out/bin
 
-      makeWrapper ${nodejs}/bin/node $out/bin/affine-server-native \
+      makeWrapper ${nodejs}/bin/node $out/bin/affine-server-predeploy \
         --chdir "$out" \
         --add-flags "./scripts/self-host-predeploy.js" \
         --set-default NODE_ENV production \
