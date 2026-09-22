@@ -37,7 +37,21 @@ Nix module to self-host Affine.
           ];
         };
     }
+```
 
 Look into `options.nix` for more options.
 
+# Building package 
+
+Beware, as Affine is going to be built from source on your machine. 
+
+It takes at least 15 gigs of ram and a decent CPU. 
+
+Solutions to that include: 
+* [NixBuild](https://eu.nixbuild.net/)
+* Including this package in nixpkgs
+
+I intend to PR this package and module to nixpkgs but I need to try it out for a while first. 
+
+Do not hesitate to open an issue or a PR.
 
