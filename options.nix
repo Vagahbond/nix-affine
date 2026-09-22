@@ -211,12 +211,6 @@ in
                   type = types.submodule {
                     freeformType = jsonFormat.type;
                     options = {
-                      publicPath = mkOption {
-                        default = "/api/blobs/";
-                        example = "/api/blobs/";
-                        description = "Public path for blobs";
-                        internal = true;
-                      };
                       storage = mkOption {
                         type = types.submodule {
                           freeformType = jsonFormat.type;
