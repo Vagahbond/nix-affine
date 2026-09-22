@@ -4,13 +4,11 @@
   utils,
   config,
   ...
-}:
-let
+}: let
   cfg = config.services.affine-server;
 
   redisServerName = "affine";
-in
-{
+in {
   options.services.affine-server = import ./options.nix {
     inherit
       lib
@@ -34,12 +32,12 @@ in
         home = cfg.dataDir;
       };
 
-      groups.${cfg.group} = { };
+      groups.${cfg.group} = {};
     };
 
     services = {
       postgresql = lib.mkIf cfg.database.createLocally {
-        ensureDatabases = [ cfg.database.name ];
+        ensureDatabases = [cfg.database.name];
         ensureUsers = [
           {
             name = cfg.database.name;
@@ -75,56 +73,53 @@ in
         "d ${cfg.dataDir}/storage 0750 ${cfg.user} ${cfg.group} - -"
       ];
 
-      services.affine-server =
-        let
-          systemdCfg = config.systemd.services;
-        in
-        {
-          description = "AFFiNE self-hosted server";
-          wantedBy = [ "multi-user.target" ];
-          after = [
-            "network.target"
-            (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
-            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
-          ];
+      services.affine-server = let
+        systemdCfg = config.systemd.services;
+      in {
+        description = "AFFiNE self-hosted server";
+        wantedBy = ["multi-user.target"];
+        after = [
+          "network.target"
+          (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
+          (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
+        ];
 
-          wants = [
-            (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
-            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
-          ];
+        wants = [
+          (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
+          (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
+        ];
 
-          environment = {
-            REDIS_SERVER_HOST = cfg.redis.host;
-            REDIS_SERVER_PORT = toString cfg.redis.port;
+        environment = {
+          REDIS_SERVER_HOST = cfg.redis.host;
+          REDIS_SERVER_PORT = toString cfg.redis.port;
 
-            DATABASE_URL = "postgresql://${cfg.database.user}:${cfg.database.password}@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}";
-
-          };
-
-          preStart = ''
-            # https://github.com/toeverything/AFFiNE/blob/d897bb3d84099e54a6b3c0bd5f4265f8aa87d190/packages/backend/server/src/base/config/register.ts#L284
-            ${utils.genJqSecretsReplacementSnippet cfg.settings "/run/affine/config.json"}
-
-            # Setup paths
-            ln -sTf /run/affine/config.json "${config.users.users.${cfg.user}.home}/.affine/config/config.json"
-
-            ${cfg.package}/bin/affine-server-predeploy
-          '';
-
-          serviceConfig = {
-            inherit (cfg) environmentFile;
-            Type = "simple";
-            User = cfg.user;
-            Group = cfg.group;
-            WorkingDirectory = cfg.dataDir;
-            ExecStart = "${cfg.package}/bin/affine-server";
-            Restart = "on-failure";
-            RestartSec = "5s";
-
-            RuntimeDirectory = "affine-server";
-            RuntimeDirectoryMode = "0700";
-          };
+          DATABASE_URL = "postgresql://${cfg.database.user}:${cfg.database.password}@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}";
         };
+
+        preStart = ''
+          # https://github.com/toeverything/AFFiNE/blob/d897bb3d84099e54a6b3c0bd5f4265f8aa87d190/packages/backend/server/src/base/config/register.ts#L284
+          ${utils.genJqSecretsReplacementSnippet cfg.settings "/run/affine/config.json"}
+
+          # Setup paths
+          ln -sTf /run/affine/config.json "${config.users.users.${cfg.user}.home}/.affine/config/config.json"
+
+          ${cfg.package}/bin/affine-server-predeploy
+        '';
+
+        serviceConfig = {
+          inherit (cfg) environmentFile;
+          Type = "simple";
+          User = cfg.user;
+          Group = cfg.group;
+          WorkingDirectory = cfg.dataDir;
+          ExecStart = "${cfg.package}/bin/affine-server";
+          Restart = "on-failure";
+          RestartSec = "5s";
+
+          RuntimeDirectory = "affine-server";
+          RuntimeDirectoryMode = "0700";
+        };
+      };
     };
   };
 }
