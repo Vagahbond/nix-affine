@@ -139,6 +139,7 @@ stdenv.mkDerivation (
         --set-default PRISMA_QUERY_ENGINE_BINARY ${prisma-engines_6}/bin/query-engine \
         --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prisma-engines_6}/lib/libquery_engine.node \
         --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/lib/libquery_engine.node \
+        --suffix PATH : "${lib.makeBinPath [ mYarn ]}" \
         ${lib.optionalString stdenv.isLinux "--suffix LD_LIBRARY_PATH : ${
           lib.makeLibraryPath [
             openssl
