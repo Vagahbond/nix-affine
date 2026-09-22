@@ -92,7 +92,7 @@ in
 
           wants = [
             (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
-            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}-redis".name)
+            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
           ];
 
           environment = {
