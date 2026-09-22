@@ -71,6 +71,7 @@ in
     systemd = {
       tmpfiles.rules = [
         "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.dataDir}/.affine 0750 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.dataDir}/.affine/config 0750 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.dataDir}/storage 0750 ${cfg.user} ${cfg.group} - -"
       ];
