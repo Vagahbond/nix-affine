@@ -19,12 +19,10 @@
 }:
 let
   nodejs = nodejs_24;
-
 in
 stdenv.mkDerivation (
   finalAttrs:
   let
-
     nodeModulesCache = mYarn.fetchYarnBerryDeps {
       inherit (finalAttrs) src missingHashes;
       hash = "sha256-qOsLgyEluCX0ivMGSfIf8OZf/oA/LiFvmNe80JG7FW8=";
@@ -96,10 +94,10 @@ stdenv.mkDerivation (
     buildPhase = ''
       runHook preBuild
 
-      yarn install 
+      yarn install
 
 
-      yarn affine @affine/server-native build 
+      yarn affine @affine/server-native build
 
       # TODO: avoid this copy (won't build server without it...)
       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.arm64.node
@@ -130,9 +128,23 @@ stdenv.mkDerivation (
 
       cp -r ./packages/frontend/apps/web/dist $out/static
       cp -r ./packages/frontend/admin/dist $out/static/admin
-      cp -r ./packages/frontend/apps/mobile/dist $out/static/mobile  
+      cp -r ./packages/frontend/apps/mobile/dist $out/static/mobile
 
       mkdir -p $out/bin
+
+      makeWrapper ${nodejs}/bin/node $out/bin/affine-server-native \
+        --chdir "$out" \
+        --add-flags "./scripts/self-host-predeploy.js" \
+        --set-default NODE_ENV production \
+        --set-default PRISMA_QUERY_ENGINE_BINARY ${prisma-engines_6}/bin/query-engine \
+        --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prisma-engines_6}/lib/libquery_engine.node \
+        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/lib/libquery_engine.node \
+        ${lib.optionalString stdenv.isLinux "--suffix LD_LIBRARY_PATH : ${
+          lib.makeLibraryPath [
+            openssl
+            opus
+          ]
+        }"}
 
       makeWrapper ${nodejs}/bin/node $out/bin/affine-server \
         --chdir "$out" \
@@ -147,6 +159,8 @@ stdenv.mkDerivation (
             opus
           ]
         }"}
+
+
 
       runHook postInstall
     '';

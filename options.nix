@@ -1,15 +1,90 @@
-{ lib, pkgs }:
-
+# Schema available here : https://github.com/toeverything/affine/releases/latest/download/config.schema.json
+{
+  lib,
+  pkgs,
+  config,
+}:
 with lib;
+let
+  secret = types.submodule {
+    options = {
+      _secret = mkOption {
+        type = types.path;
+        description = "Path to the secret file";
+      };
+    };
+  };
 
+  jsonFormat = pkgs.formats.json { };
+
+  cfg = config.services.affine-server;
+in
 {
   enable = mkEnableOption "AFFiNE self-hosted server";
 
   package = mkOption {
     type = types.package;
     default = pkgs.affine-server;
-    defaultText = literalExpression "pkgs.affine-server";
     description = "The affine-server package to run.";
+  };
+
+  nginx = {
+    enable = mkEnableOption "an nginx virtual host for affine-server";
+
+    enableACME = mkOption {
+      type = types.bool;
+      default = cfg.nginx.enable;
+      description = "Whether to request an ACME certificate for the virtual host.";
+    };
+  };
+
+  redis = {
+    createLocally = mkEnableOption "a local Redis instance via NixOS' redis module";
+    host = mkOption {
+      type = types.str;
+      default = "127.0.0.1";
+      description = "Redis host affine-server connects to.";
+    };
+
+    port = mkOption {
+      type = types.port;
+      default = 6379;
+      description = "Redis port.";
+    };
+  };
+
+  database = {
+    createLocally = mkEnableOption "a local PostgreSQL instance via NixOS' postgresql module";
+
+    name = mkOption {
+      type = types.str;
+      default = "affine";
+      description = "Database name.";
+    };
+
+    user = mkOption {
+      type = types.str;
+      default = cfg.database.name;
+      description = "Database user.";
+    };
+
+    password = mkOption {
+      type = types.nullOr types.str;
+      default = "affine";
+      description = "Database password.";
+    };
+
+    host = mkOption {
+      type = types.str;
+      default = "127.0.0.1";
+      description = "Database host.";
+    };
+
+    port = mkOption {
+      type = types.port;
+      default = 5432;
+      description = "Database port.";
+    };
   };
 
   user = mkOption {
@@ -30,158 +105,240 @@ with lib;
     description = "Directory holding affine-server's persistent config and storage.";
   };
 
-  domain = mkOption {
-    type = types.str;
-    example = "affine.example.com";
-    description = "Public domain name affine-server is served under.";
-  };
-
-  host = mkOption {
-    type = types.str;
-    default = "127.0.0.1";
-    description = "Address affine-server listens on.";
-  };
-
-  port = mkOption {
-    type = types.port;
-    default = 3010;
-    description = "Port affine-server listens on.";
-  };
-
-  https = mkOption {
-    type = types.bool;
-    default = true;
-    description = "Whether the public-facing URL uses https (used for AFFINE_SERVER_HTTPS and building the external URL).";
-  };
-
-  openFirewall = mkOption {
-    type = types.bool;
-    default = false;
-    description = "Whether to open the firewall for the configured port.";
-  };
-
   environmentFile = mkOption {
     type = types.nullOr types.path;
     default = null;
-    example = "/run/secrets/affine.env";
+    description = "Path to the environment file (refer to https://docs.affine.pro/self-host-affine/references/environment-variables)";
+  };
+
+  settings = mkOption {
     description = ''
-      Path to an EnvironmentFile (in the systemd sense) holding secrets such as
-      `DATABASE_URL` (when not using a locally managed database), `AFFINE_MAILER_PASSWORD`,
-      OAuth client secrets, or a custom `AFFINE_SERVER_JWT_SECRET`.
-      Kept out of the Nix store and out of `environment`.
+      AFFiNE server settings.
+          You can specify secret values in this configuration by setting somevalue._secret = "/path/to/file" instead of setting somevalue directly.
+          Refer to https://github.com/toeverything/affine/releases/latest/download/config.schema.json
     '';
-  };
 
-  extraEnvironment = mkOption {
-    type = types.attrsOf types.str;
-    default = { };
-    example = { AFFINE_INDEXER_ENABLED = "true"; };
-    description = "Extra, non-secret environment variables passed to affine-server.";
-  };
+    type = types.submodule {
+      freeformType = jsonFormat.type;
+      options = {
+        metrics = mkOption {
+          type = types.submodule {
+            freeformType = jsonFormat.type;
+            options = {
+              enabled = mkOption {
+                type = types.bool;
+                description = "Enable metric and tracing collection";
+                default = false;
+              };
+            };
+          };
+        };
 
-  database = {
-    createLocally = mkOption {
-      type = types.bool;
-      default = true;
-      description = "Whether to create and use a local PostgreSQL database via NixOS' postgresql module.";
-    };
+        crypto = mkOption {
+          type = types.submodule {
+            freeformType = jsonFormat.type;
+            options = {
+              privateKey = mkOption {
+                type = types.either secret (types.nullOr types.str);
+                description = "The private key for used by the crypto module to create signed tokens or encrypt data.\n@default \"\"\n@environment `AFFINE_PRIVATE_KEY`";
+                example = {
+                  _secret = "/var/lib/affine/private.key";
+                };
+              };
+            };
+          };
+        };
+        auth = mkOption {
+          description = "Configuration for auth module";
+          type = types.submodule {
+            freeformType = jsonFormat.type;
+            options = {
+              allowSignup = mkOption {
+                type = types.bool;
+                description = "Allow users to sign up";
+                default = false;
+              };
+            };
+          };
+          storages = mkOption {
+            description = "Configuration for storages module";
 
-    host = mkOption {
-      type = types.str;
-      default = "/run/postgresql";
-      description = "Database host (or unix socket directory) affine-server connects to.";
-    };
+            type = types.submodule {
+              freeformType = jsonFormat.type;
+              options = {
+                avatar = mkOption {
+                  description = "Configuration for user avatars storage";
+                  type = types.submodule {
+                    freeformType = jsonFormat.type;
+                    options = {
+                      storage = mkOption {
+                        type = types.submodule {
+                          freeformType = jsonFormat.type;
+                          options = {
+                            provider = mkOption {
+                              type = types.str;
+                              description = "Storage provider";
+                              default = "fs";
+                            };
 
-    port = mkOption {
-      type = types.port;
-      default = 5432;
-      description = "Database port.";
-    };
+                            bucket = mkOption {
+                              type = types.str;
+                              description = "Storage bucket";
+                              default = "avatars";
+                            };
 
-    name = mkOption {
-      type = types.str;
-      default = "affine";
-      description = "Database name.";
-    };
+                            config = mkOption {
+                              type = types.submodule {
+                                freeformType = jsonFormat.type;
+                                options = {
+                                  path = mkOption {
+                                    type = types.str;
+                                    description = "Path to the storage";
+                                    default = "${cfg.dataDir}/storage";
+                                  };
+                                };
+                              };
+                            };
+                          };
+                        };
+                      };
+                    };
+                  };
+                };
 
-    user = mkOption {
-      type = types.str;
-      default = "affine";
-      description = "Database user.";
-    };
-
-    passwordFile = mkOption {
-      type = types.nullOr types.path;
-      default = null;
-      description = ''
-        File containing the database password, read at service start.
-        Leave unset when `createLocally` is true, since the local database
-        is configured to authenticate via the unix socket peer instead.
-      '';
-    };
-  };
-
-  redis = {
-    createLocally = mkOption {
-      type = types.bool;
-      default = true;
-      description = "Whether to create and use a local Redis instance via NixOS' redis module.";
-    };
-
-    host = mkOption {
-      type = types.str;
-      default = "127.0.0.1";
-      description = "Redis host affine-server connects to.";
-    };
-
-    port = mkOption {
-      type = types.port;
-      default = 6379;
-      description = "Redis port.";
-    };
-  };
-
-  mailer = {
-    enable = mkEnableOption "outgoing mail support for affine-server";
-
-    host = mkOption {
-      type = types.str;
-      example = "smtp.example.com";
-      description = "SMTP host used to send mail.";
-    };
-
-    port = mkOption {
-      type = types.port;
-      default = 587;
-      description = "SMTP port.";
-    };
-
-    user = mkOption {
-      type = types.str;
-      example = "affine@example.com";
-      description = "SMTP username.";
-    };
-
-    sender = mkOption {
-      type = types.str;
-      example = "affine@example.com";
-      description = "Address mail is sent from.";
-    };
-
-    passwordFile = mkOption {
-      type = types.nullOr types.path;
-      default = null;
-      description = "File containing the SMTP password, read at service start.";
-    };
-  };
-
-  nginx = {
-    enable = mkEnableOption "an nginx virtual host for affine-server";
-
-    enableACME = mkOption {
-      type = types.bool;
-      default = true;
-      description = "Whether to request an ACME certificate for the virtual host.";
+                blob = mkOption {
+                  description = "Configuration for blob storage";
+                  type = types.submodule {
+                    freeformType = jsonFormat.type;
+                    options = {
+                      publicPath = mkOption {
+                        default = "/api/blobs/";
+                        example = "/api/blobs/";
+                        description = "Public path for blobs";
+                        internal = true;
+                      };
+                      storage = mkOption {
+                        type = types.submodule {
+                          freeformType = jsonFormat.type;
+                          options = {
+                            provider = mkOption {
+                              type = types.str;
+                              description = "Storage provider";
+                              default = "fs";
+                            };
+                            bucket = mkOption {
+                              type = types.str;
+                              description = "Storage bucket";
+                              default = "blobs";
+                            };
+                            config = mkOption {
+                              type = types.submodule {
+                                freeformType = jsonFormat.type;
+                                options = {
+                                  path = mkOption {
+                                    type = types.str;
+                                    description = "Path to the storage";
+                                    default = "${cfg.dataDir}/storage";
+                                  };
+                                };
+                              };
+                            };
+                          };
+                        };
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+          server = {
+            description = "Configuration for server module";
+            type = types.submodule {
+              freeformType = jsonFormat.type;
+              options = {
+                name = mkOption {
+                  type = types.str;
+                  description = "Name of the server";
+                  default = "Nix Affine Server";
+                };
+                externalUrl = mkOption {
+                  type = types.str;
+                  description = "External URL of the server";
+                  default = "${if cfg.https then "https" else "http"}://${
+                    if cfg.nginx.enable then cfg.settings.server.host else "127.0.0.1"
+                  }${if !cfg.nginx.enable then ":${toString cfg.settings.server.port}" else ""}";
+                  example = "https://affine.example.com";
+                };
+                https = mkOption {
+                  type = types.bool;
+                  description = "Whether the server is served over HTTPS";
+                  default = true;
+                };
+                host = mkOption {
+                  type = types.str;
+                  description = "Host of the server";
+                  example = "affine.example.com";
+                };
+                port = mkOption {
+                  type = types.port;
+                  description = "Port of the server";
+                  default = 3210;
+                };
+                listenAddr = mkOption {
+                  type = types.str;
+                  description = "Listen address of the server";
+                  default = "127.0.0.1";
+                };
+              };
+            };
+          };
+          flags = {
+            description = "Configuration for flags module";
+            type = types.submodules {
+              freeformType = jsonFormat.type;
+              options = {
+                allowGuestDemoWorkspace = mkOption {
+                  type = types.bool;
+                  description = "Allow guest demo workspace";
+                  default = false;
+                };
+              };
+            };
+          };
+          client = {
+            description = "Configuration for client module";
+            type = types.submodule {
+              freeformType = jsonFormat.type;
+              options = {
+                versionControl = mkOption {
+                  description = "Configuration for version control module";
+                  type = types.submodule {
+                    freeformType = jsonFormat.type;
+                    options = {
+                      description = "Verson control module checks for the client's version before allowing them to use the workspace";
+                      enabled = mkEnableOption "Enable version control";
+                    };
+                  };
+                };
+              };
+            };
+          };
+          payment = {
+            description = "Configuration for payment module";
+            type = types.submodule {
+              freeformType = jsonFormat.type;
+              options = {
+                showLifetimePrice = mkOption {
+                  type = types.bool;
+                  description = "Show lifetime price";
+                  default = false;
+                };
+              };
+            };
+          };
+        };
+      };
     };
   };
 }
