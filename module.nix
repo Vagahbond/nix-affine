@@ -1,8 +1,8 @@
+self:
 {
   lib,
   pkgs,
   utils,
-  self,
   ...
 }:
 let
