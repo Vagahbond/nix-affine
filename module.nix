@@ -1,4 +1,3 @@
-self:
 {
   lib,
   pkgs,
@@ -17,7 +16,6 @@ in
       lib
       pkgs
       config
-      self
       ;
   };
 

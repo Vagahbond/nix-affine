@@ -3,7 +3,6 @@
   lib,
   pkgs,
   config,
-  self,
 }:
 with lib;
 let
@@ -25,7 +24,6 @@ in
 
   package = mkOption {
     type = types.package;
-    default = self.packages.affine-server;
     description = "The affine-server package to run.";
   };
 
