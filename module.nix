@@ -12,7 +12,7 @@ let
   redisServerName = "redis-affine";
 in
 {
-  options.services.affine-server = import ./options.nix { inherit lib pkgs; };
+  options.services.affine-server = import ./options.nix { inherit lib pkgs config; };
 
   config = lib.mkIf cfg.enable {
     assertions = [
