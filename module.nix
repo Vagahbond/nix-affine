@@ -1,9 +1,9 @@
+self:
 {
   lib,
   pkgs,
   utils,
   config,
-  self,
   ...
 }:
 let
