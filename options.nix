@@ -28,13 +28,18 @@ in
     description = "The affine-server package to run.";
   };
 
-  nginx = {
-    enable = mkEnableOption "an nginx virtual host for affine-server";
+  nginx = mkOption {
+    description = "Configuration for nginx";
+    type = types.submodule {
+      options = {
+        enable = mkEnableOption "an nginx virtual host for affine-server";
 
-    enableACME = mkOption {
-      type = types.bool;
-      default = cfg.nginx.enable;
-      description = "Whether to request an ACME certificate for the virtual host.";
+        enableACME = mkOption {
+          type = types.bool;
+          default = cfg.nginx.enable;
+          description = "Whether to request an ACME certificate for the virtual host.";
+        };
+      };
     };
   };
 
@@ -148,6 +153,7 @@ in
             };
           };
         };
+
         auth = mkOption {
           description = "Configuration for auth module";
           type = types.submodule {
@@ -160,80 +166,43 @@ in
               };
             };
           };
-          storages = mkOption {
-            description = "Configuration for storages module";
+        };
 
-            type = types.submodule {
-              freeformType = jsonFormat.type;
-              options = {
-                avatar = mkOption {
-                  description = "Configuration for user avatars storage";
-                  type = types.submodule {
-                    freeformType = jsonFormat.type;
-                    options = {
-                      storage = mkOption {
-                        type = types.submodule {
-                          freeformType = jsonFormat.type;
-                          options = {
-                            provider = mkOption {
-                              type = types.str;
-                              description = "Storage provider";
-                              default = "fs";
-                            };
+        storages = mkOption {
+          description = "Configuration for storages module";
 
-                            bucket = mkOption {
-                              type = types.str;
-                              description = "Storage bucket";
-                              default = "avatars";
-                            };
-
-                            config = mkOption {
-                              type = types.submodule {
-                                freeformType = jsonFormat.type;
-                                options = {
-                                  path = mkOption {
-                                    type = types.str;
-                                    description = "Path to the storage";
-                                    default = "${cfg.dataDir}/storage";
-                                  };
-                                };
-                              };
-                            };
+          type = types.submodule {
+            freeformType = jsonFormat.type;
+            options = {
+              avatar = mkOption {
+                description = "Configuration for user avatars storage";
+                type = types.submodule {
+                  freeformType = jsonFormat.type;
+                  options = {
+                    storage = mkOption {
+                      type = types.submodule {
+                        freeformType = jsonFormat.type;
+                        options = {
+                          provider = mkOption {
+                            type = types.str;
+                            description = "Storage provider";
+                            default = "fs";
                           };
-                        };
-                      };
-                    };
-                  };
-                };
 
-                blob = mkOption {
-                  description = "Configuration for blob storage";
-                  type = types.submodule {
-                    freeformType = jsonFormat.type;
-                    options = {
-                      storage = mkOption {
-                        type = types.submodule {
-                          freeformType = jsonFormat.type;
-                          options = {
-                            provider = mkOption {
-                              type = types.str;
-                              description = "Storage provider";
-                              default = "fs";
-                            };
-                            bucket = mkOption {
-                              type = types.str;
-                              description = "Storage bucket";
-                              default = "blobs";
-                            };
-                            config = mkOption {
-                              type = types.submodule {
-                                freeformType = jsonFormat.type;
-                                options = {
-                                  path = mkOption {
-                                    type = types.str;
-                                    description = "Path to the storage";
-                                    default = "${cfg.dataDir}/storage";
-                                  };
+                          bucket = mkOption {
+                            type = types.str;
+                            description = "Storage bucket";
+                            default = "avatars";
+                          };
+
+                          config = mkOption {
+                            type = types.submodule {
+                              freeformType = jsonFormat.type;
+                              options = {
+                                path = mkOption {
+                                  type = types.str;
+                                  description = "Path to the storage";
+                                  default = "${cfg.dataDir}/storage";
                                 };
                               };
                             };
@@ -244,90 +213,130 @@ in
                   };
                 };
               };
-            };
-          };
-          server = {
-            description = "Configuration for server module";
-            type = types.submodule {
-              freeformType = jsonFormat.type;
-              options = {
-                name = mkOption {
-                  type = types.str;
-                  description = "Name of the server";
-                  default = "Nix Affine Server";
-                };
-                externalUrl = mkOption {
-                  type = types.str;
-                  description = "External URL of the server";
-                  default = "${if cfg.https then "https" else "http"}://${
-                    if cfg.nginx.enable then cfg.settings.server.host else "127.0.0.1"
-                  }${if !cfg.nginx.enable then ":${toString cfg.settings.server.port}" else ""}";
-                  example = "https://affine.example.com";
-                };
-                https = mkOption {
-                  type = types.bool;
-                  description = "Whether the server is served over HTTPS";
-                  default = true;
-                };
-                host = mkOption {
-                  type = types.str;
-                  description = "Host of the server";
-                  example = "affine.example.com";
-                };
-                port = mkOption {
-                  type = types.port;
-                  description = "Port of the server";
-                  default = 3210;
-                };
-                listenAddr = mkOption {
-                  type = types.str;
-                  description = "Listen address of the server";
-                  default = "127.0.0.1";
-                };
-              };
-            };
-          };
-          flags = {
-            description = "Configuration for flags module";
-            type = types.submodules {
-              freeformType = jsonFormat.type;
-              options = {
-                allowGuestDemoWorkspace = mkOption {
-                  type = types.bool;
-                  description = "Allow guest demo workspace";
-                  default = false;
-                };
-              };
-            };
-          };
-          client = {
-            description = "Configuration for client module";
-            type = types.submodule {
-              freeformType = jsonFormat.type;
-              options = {
-                versionControl = mkOption {
-                  description = "Configuration for version control module";
-                  type = types.submodule {
-                    freeformType = jsonFormat.type;
-                    options = {
-                      description = "Verson control module checks for the client's version before allowing them to use the workspace";
-                      enabled = mkEnableOption "Enable version control";
+
+              blob = mkOption {
+                description = "Configuration for blob storage";
+                type = types.submodule {
+                  freeformType = jsonFormat.type;
+                  options = {
+                    storage = mkOption {
+                      type = types.submodule {
+                        freeformType = jsonFormat.type;
+                        options = {
+                          provider = mkOption {
+                            type = types.str;
+                            description = "Storage provider";
+                            default = "fs";
+                          };
+                          bucket = mkOption {
+                            type = types.str;
+                            description = "Storage bucket";
+                            default = "blobs";
+                          };
+                          config = mkOption {
+                            type = types.submodule {
+                              freeformType = jsonFormat.type;
+                              options = {
+                                path = mkOption {
+                                  type = types.str;
+                                  description = "Path to the storage";
+                                  default = "${cfg.dataDir}/storage";
+                                };
+                              };
+                            };
+                          };
+                        };
+                      };
                     };
                   };
                 };
               };
             };
           };
-          payment = {
-            description = "Configuration for payment module";
-            type = types.submodule {
-              freeformType = jsonFormat.type;
-              options = {
-                showLifetimePrice = mkOption {
-                  type = types.bool;
-                  description = "Show lifetime price";
-                  default = false;
+        };
+        server = mkOption {
+          description = "Configuration for server module";
+          type = types.submodule {
+            freeformType = jsonFormat.type;
+            options = {
+              name = mkOption {
+                type = types.str;
+                description = "Name of the server";
+                default = "Nix Affine Server";
+              };
+              externalUrl = mkOption {
+                type = types.str;
+                description = "External URL of the server";
+                default = "${if cfg.https then "https" else "http"}://${
+                  if cfg.nginx.enable then cfg.settings.server.host else "127.0.0.1"
+                }${if !cfg.nginx.enable then ":${toString cfg.settings.server.port}" else ""}";
+                example = "https://affine.example.com";
+              };
+              https = mkOption {
+                type = types.bool;
+                description = "Whether the server is served over HTTPS";
+                default = true;
+              };
+              host = mkOption {
+                type = types.str;
+                description = "Host of the server";
+                example = "affine.example.com";
+              };
+              port = mkOption {
+                type = types.port;
+                description = "Port of the server";
+                default = 3210;
+              };
+              listenAddr = mkOption {
+                type = types.str;
+                description = "Listen address of the server";
+                default = "127.0.0.1";
+              };
+            };
+          };
+        };
+
+        flags = mkOption {
+          description = "Configuration for flags module";
+          type = types.submodules {
+            freeformType = jsonFormat.type;
+            options = {
+              allowGuestDemoWorkspace = mkOption {
+                type = types.bool;
+                description = "Allow guest demo workspace";
+                default = false;
+              };
+            };
+          };
+        };
+
+        client = mkOption {
+          description = "Configuration for client module";
+          type = types.submodule {
+            freeformType = jsonFormat.type;
+            options = {
+              versionControl = mkOption {
+                description = "Configuration for version control module";
+                type = types.submodule {
+                  freeformType = jsonFormat.type;
+                  options = {
+                    enabled = mkEnableOption "Enable version control";
+                  };
                 };
+              };
+            };
+          };
+        };
+
+        payment = mkOption {
+          description = "Configuration for payment module";
+          type = types.submodule {
+            freeformType = jsonFormat.type;
+            options = {
+              showLifetimePrice = mkOption {
+                type = types.bool;
+                description = "Show lifetime price";
+                default = false;
               };
             };
           };

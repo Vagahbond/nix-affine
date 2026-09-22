@@ -1,15 +1,14 @@
-self:
 {
   lib,
   pkgs,
   utils,
+  config,
   ...
 }:
 let
-  inherit (self) config;
   cfg = config.services.affine-server;
 
-  redisServerName = "redis-affine";
+  redisServerName = "affine";
 in
 {
   options.services.affine-server = import ./options.nix { inherit lib pkgs config; };
@@ -80,15 +79,13 @@ in
           after = [
             "network.target"
             (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
-            (lib.mkIf cfg.redis.createLocally systemdCfg.${redisServerName}.name)
+            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
           ];
 
           wants = [
             (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
-            (lib.mkIf cfg.redis.createLocally systemdCfg.${redisServerName}.name)
+            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
           ];
-
-          inherit (cfg) environmentFile;
 
           environment = {
             REDIS_SERVER_HOST = cfg.redis.host;
@@ -109,6 +106,7 @@ in
           '';
 
           serviceConfig = {
+            inherit (cfg) environmentFile;
             Type = "simple";
             User = cfg.user;
             Group = cfg.group;
