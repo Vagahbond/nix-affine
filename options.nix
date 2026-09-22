@@ -298,7 +298,7 @@ in
 
         flags = mkOption {
           description = "Configuration for flags module";
-          type = types.submodules {
+          type = types.submodule {
             freeformType = jsonFormat.type;
             options = {
               allowGuestDemoWorkspace = mkOption {
