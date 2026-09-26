@@ -25,6 +25,10 @@ in
         assertion = cfg.settings.server.host != null;
         message = "AFFiNE server host must be set to a FQDN.";
       }
+      {
+        assertion = cfg.database.createLocally -> cfg.user == cfg.database.name;
+        message = "services.affine-server.user must equal services.affine-server.database.name when database.createLocally is enabled (PostgreSQL peer authentication over the Unix socket).";
+      }
     ];
 
     users = {
@@ -39,6 +43,7 @@ in
 
     services = {
       postgresql = lib.mkIf cfg.database.createLocally {
+        enable = true;
         ensureDatabases = [ cfg.database.name ];
         ensureUsers = [
           {
@@ -85,20 +90,25 @@ in
           wantedBy = [ "multi-user.target" ];
           after = [
             "network.target"
-            (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
-            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
-          ];
+          ]
+          ++ lib.optional cfg.database.createLocally systemdCfg.postgresql.name
+          ++ lib.optional cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name;
 
-          wants = [
-            (lib.mkIf cfg.database.createLocally systemdCfg.postgresql.name)
-            (lib.mkIf cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name)
-          ];
+          wants =
+            lib.optional cfg.database.createLocally systemdCfg.postgresql.name
+            ++ lib.optional cfg.redis.createLocally systemdCfg."redis-${redisServerName}".name;
 
           environment = {
             REDIS_SERVER_HOST = cfg.redis.host;
             REDIS_SERVER_PORT = toString cfg.redis.port;
 
-            DATABASE_URL = "postgresql://${cfg.database.user}:${cfg.database.password}@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}";
+            DATABASE_URL =
+              if cfg.database.createLocally then
+                "postgresql://${cfg.database.name}@localhost:${toString config.services.postgresql.settings.port}/${cfg.database.name}?host=/run/postgresql"
+              else
+                "postgresql://${cfg.database.user}${
+                  lib.optionalString (cfg.database.password != null) ":${cfg.database.password}"
+                }@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}";
           };
 
           preStart = ''
@@ -111,7 +121,7 @@ in
           '';
 
           serviceConfig = {
-            inherit (cfg) environmentFile;
+            EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
             Type = "simple";
             User = cfg.user;
             Group = cfg.group;

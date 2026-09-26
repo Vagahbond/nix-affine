@@ -8,7 +8,7 @@ with lib; let
   secret = types.submodule {
     options = {
       _secret = mkOption {
-        type = types.path;
+        type = types.externalPath;
         description = "Path to the secret file";
       };
     };
@@ -108,7 +108,7 @@ in {
   };
 
   environmentFile = mkOption {
-    type = types.nullOr types.path;
+    type = types.nullOr types.externalPath;
     default = null;
     description = "Path to the environment file (refer to https://docs.affine.pro/self-host-affine/references/environment-variables)";
   };
