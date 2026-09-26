@@ -5,13 +5,14 @@
   cargo,
   cmake,
   lib,
-  makeWrapper,
+  makeBinaryWrapper,
   nodejs_24,
   openssl,
   pkg-config,
   rustPlatform,
   stdenv,
   mYarn,
+  yarn,
   prisma-engines_6,
   # inputs,
   rustc,
@@ -32,6 +33,17 @@ stdenv.mkDerivation (
       inherit (finalAttrs) src;
       hash = "sha256-fQY4DmkbZQljXQzWRNLzaYxdPoenWTbOtjBvqT/HFYE=";
     };
+
+    targetArch =
+      if stdenv.hostPlatform.isx86_64 then
+        "amd64"
+      else if stdenv.hostPlatform.isAarch64 then
+        "arm64"
+      else if stdenv.hostPlatform.isArm then
+        "armv7"
+      else
+        throw "Unsupported architecture";
+
   in
   {
     pname = "affine-server";
@@ -63,7 +75,7 @@ stdenv.mkDerivation (
       cmake
       rustc
       mYarn.yarnBerryConfigHook
-      makeWrapper
+      makeBinaryWrapper
       openssl
       nodejs
       pkg-config
@@ -94,8 +106,6 @@ stdenv.mkDerivation (
     buildPhase = ''
       runHook preBuild
 
-      yarn install
-
 
       yarn affine @affine/server-native build
 
@@ -111,35 +121,45 @@ stdenv.mkDerivation (
        yarn affine @affine/admin build
        yarn affine @affine/mobile build
 
-       yarn workspaces focus @affine/server --production
-       yarn workspace @affine/server prisma generate
+      yarn workspaces focus @affine/server --production
+      yarn workspace @affine/server prisma generate
+
+      AFFINE_DOCKER_CLEAN=1 TARGETARCH="${targetArch}" node ./packages/backend/server/scripts/docker-clean.mjs 
+
+      rm -rf ./node_modules/@affine
+
+
       runHook postBuild
     '';
 
     installPhase = ''
       runHook preInstall
 
-
-
       cp -r ./packages/backend/server $out
-
       cp -r ./node_modules $out/
-      rm -rf $out/node_modules/@affine
 
       cp -r ./packages/frontend/apps/web/dist $out/static
       cp -r ./packages/frontend/admin/dist $out/static/admin
       cp -r ./packages/frontend/apps/mobile/dist $out/static/mobile
 
+      rm -rf $out/node_modules/@affine
+
       mkdir -p $out/bin
 
-      makeWrapper ${nodejs}/bin/node $out/bin/affine-server-predeploy \
+      makeBinaryWrapper ${nodejs}/bin/node $out/bin/affine-server-predeploy \
         --chdir "$out" \
         --add-flags "./scripts/self-host-predeploy.js" \
         --set-default NODE_ENV production \
         --set-default PRISMA_QUERY_ENGINE_BINARY ${prisma-engines_6}/bin/query-engine \
         --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prisma-engines_6}/lib/libquery_engine.node \
-        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/lib/libquery_engine.node \
-        --suffix PATH : "${lib.makeBinPath [ mYarn ]}" \
+        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/bin/schema-engine \
+        --set-default DEPLOYMENT_TYPE selfhosted \
+        --prefix PATH : "${
+          lib.makeBinPath [
+            (yarn.override { inherit nodejs; })
+            nodejs
+          ]
+        }" \
         ${lib.optionalString stdenv.isLinux "--suffix LD_LIBRARY_PATH : ${
           lib.makeLibraryPath [
             openssl
@@ -147,13 +167,14 @@ stdenv.mkDerivation (
           ]
         }"}
 
-      makeWrapper ${nodejs}/bin/node $out/bin/affine-server \
+      makeBinaryWrapper ${nodejs}/bin/node $out/bin/affine-server \
         --chdir "$out" \
         --add-flags "dist/main.js" \
         --set-default NODE_ENV production \
         --set-default PRISMA_QUERY_ENGINE_BINARY ${prisma-engines_6}/bin/query-engine \
         --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prisma-engines_6}/lib/libquery_engine.node \
-        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/lib/libquery_engine.node \
+        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/bin/schema-engine \
+        --set-default DEPLOYMENT_TYPE selfhosted \
         ${lib.optionalString stdenv.isLinux "--suffix LD_LIBRARY_PATH : ${
           lib.makeLibraryPath [
             openssl
