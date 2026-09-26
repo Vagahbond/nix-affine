@@ -4,6 +4,7 @@
   cacert,
   cargo,
   cmake,
+  fetchFromGitHub,
   lib,
   makeBinaryWrapper,
   nodejs_24,
@@ -20,6 +21,23 @@
 }:
 let
   nodejs = nodejs_24;
+
+  prismaEngines = prisma-engines_6.overrideAttrs (
+    finalAttrs: previousAttrs: {
+      version = "6.8.2";
+      src = fetchFromGitHub {
+        owner = "prisma";
+        repo = "prisma-engines";
+        tag = finalAttrs.version;
+        hash = "sha256-YvP3yJQoe+q7jjpwntaYkYjxyoDzqnXcpIZa4Y+I/+E=";
+      };
+      cargoDeps = rustPlatform.fetchCargoVendor {
+        inherit (finalAttrs) pname version src;
+        patches = previousAttrs.cargoPatches or [ ];
+        hash = "sha256-5iJM0mqBfY3KdtToxCas4Xxu5jCf+CNwAUA2zuGu+iM=";
+      };
+    }
+  );
 in
 stdenv.mkDerivation (
   finalAttrs:
@@ -93,9 +111,9 @@ stdenv.mkDerivation (
       runHook preConfigure
 
       export ELECTRON_SKIP_BINARY_DOWNLOAD=1
-      export PRISMA_QUERY_ENGINE_BINARY=${prisma-engines_6}/bin/query-engine
-      export PRISMA_QUERY_ENGINE_LIBRARY=${prisma-engines_6}/lib/libquery_engine.node
-      export PRISMA_SCHEMA_ENGINE_BINARY=${prisma-engines_6}/bin/schema-engine
+      export PRISMA_QUERY_ENGINE_BINARY=${prismaEngines}/bin/query-engine
+      export PRISMA_QUERY_ENGINE_LIBRARY=${prismaEngines}/lib/libquery_engine.node
+      export PRISMA_SCHEMA_ENGINE_BINARY=${prismaEngines}/bin/schema-engine
 
       runHook postConfigure
     '';
@@ -150,9 +168,9 @@ stdenv.mkDerivation (
         --chdir "$out" \
         --add-flags "./scripts/self-host-predeploy.js" \
         --set-default NODE_ENV production \
-        --set-default PRISMA_QUERY_ENGINE_BINARY ${prisma-engines_6}/bin/query-engine \
-        --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prisma-engines_6}/lib/libquery_engine.node \
-        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/bin/schema-engine \
+        --set-default PRISMA_QUERY_ENGINE_BINARY ${prismaEngines}/bin/query-engine \
+        --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prismaEngines}/lib/libquery_engine.node \
+        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prismaEngines}/bin/schema-engine \
         --set-default DEPLOYMENT_TYPE selfhosted \
         --prefix PATH : "${
           lib.makeBinPath [
@@ -171,9 +189,9 @@ stdenv.mkDerivation (
         --chdir "$out" \
         --add-flags "dist/main.js" \
         --set-default NODE_ENV production \
-        --set-default PRISMA_QUERY_ENGINE_BINARY ${prisma-engines_6}/bin/query-engine \
-        --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prisma-engines_6}/lib/libquery_engine.node \
-        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prisma-engines_6}/bin/schema-engine \
+        --set-default PRISMA_QUERY_ENGINE_BINARY ${prismaEngines}/bin/query-engine \
+        --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prismaEngines}/lib/libquery_engine.node \
+        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prismaEngines}/bin/schema-engine \
         --set-default DEPLOYMENT_TYPE selfhosted \
         ${lib.optionalString stdenv.isLinux "--suffix LD_LIBRARY_PATH : ${
           lib.makeLibraryPath [
