@@ -4,7 +4,8 @@
   pkgs,
   config,
 }:
-with lib; let
+with lib;
+let
   secret = types.submodule {
     options = {
       _secret = mkOption {
@@ -14,10 +15,11 @@ with lib; let
     };
   };
 
-  jsonFormat = pkgs.formats.json {};
+  jsonFormat = pkgs.formats.json { };
 
   cfg = config.services.affine-server;
-in {
+in
+{
   enable = mkEnableOption "AFFiNE self-hosted server";
 
   package = mkOption {
@@ -102,7 +104,7 @@ in {
   };
 
   dataDir = mkOption {
-    type = types.path;
+    type = types.externalPath;
     default = "/var/lib/affine";
     description = "Directory holding affine-server's persistent config and storage.";
   };
@@ -197,9 +199,10 @@ in {
                               freeformType = jsonFormat.type;
                               options = {
                                 path = mkOption {
-                                  type = types.str;
+                                  type = types.nullOr types.str;
                                   description = "Path to the storage";
-                                  default = "${cfg.dataDir}/storage";
+                                  default =
+                                    if (cfg.settings.storages.avatar.storage.provider == "fs") then "${cfg.dataDir}/storage" else null;
                                 };
                               };
                             };
@@ -235,9 +238,10 @@ in {
                               freeformType = jsonFormat.type;
                               options = {
                                 path = mkOption {
-                                  type = types.str;
+                                  type = types.nullOr types.str;
                                   description = "Path to the storage";
-                                  default = "${cfg.dataDir}/storage";
+                                  default =
+                                    if (cfg.settings.storages.avatar.storage.provider == "fs") then "${cfg.dataDir}/storage" else null;
                                 };
                               };
                             };
@@ -264,19 +268,9 @@ in {
               externalUrl = mkOption {
                 type = types.str;
                 description = "External URL of the server";
-                default = "${
-                  if cfg.settings.server.https
-                  then "https"
-                  else "http"
-                }://${
-                  if cfg.nginx.enable
-                  then cfg.settings.server.host
-                  else "127.0.0.1"
-                }${
-                  if !cfg.nginx.enable
-                  then ":${toString cfg.settings.server.port}"
-                  else ""
-                }";
+                default = "${if cfg.settings.server.https then "https" else "http"}://${
+                  if cfg.nginx.enable then cfg.settings.server.host else "127.0.0.1"
+                }${if !cfg.nginx.enable then ":${toString cfg.settings.server.port}" else ""}";
                 example = "https://affine.example.com";
               };
               https = mkOption {
