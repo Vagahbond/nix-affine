@@ -123,7 +123,7 @@ stdenv.mkDerivation (
 
       ${lib.getExe mYarn} workspace @affine/server prisma generate
 
-      ./scripts/set-version.sh ${finalAttrs.version}
+      bash ./scripts/set-version.sh ${finalAttrs.version}
 
       AFFINE_DOCKER_CLEAN=1 TARGETARCH="${targetArch}" node ./packages/backend/server/scripts/docker-clean.mjs 
 
