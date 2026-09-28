@@ -19,8 +19,8 @@
     }:
     let
       forAllSupportedSystems =
-        systems: function:
-        nixpkgs.lib.genAttrs systems (
+        function:
+        nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-darwin" "aarch64-linux" ] (
           system:
           function (
             import nixpkgs {
@@ -42,9 +42,9 @@
         });
     in
     {
-      formatter = forAllSupportedSystems [ "aarch64-darwin" "x86_64-linux" ] (pkgs: pkgs.nixpkgs-fmt);
+      formatter = forAllSupportedSystems (pkgs: pkgs.nixpkgs-fmt);
 
-      packages = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (
+      packages = forAllSupportedSystems (
         pkgs:
         let
           mYarn = mkYarn pkgs;
@@ -61,7 +61,7 @@
 
       nixosModules.default = import ./module.nix;
 
-      devShells = forAllSupportedSystems [ "x86_64-linux" "aarch64-darwin" ] (pkgs: {
+      devShells = forAllSupportedSystems (pkgs: {
         default = import ./shell.nix {
           inherit self pkgs affine;
           yarn = mkYarn pkgs;

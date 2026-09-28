@@ -22,7 +22,7 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = cfg.settings.server.host != null;
+        assertion = cfg.settings.server.host != "";
         message = "AFFiNE server host must be set to a FQDN.";
       }
       {
@@ -79,7 +79,10 @@ in
         "d ${cfg.dataDir}/.affine 0750 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.dataDir}/.affine/config 0750 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.dataDir}/storage 0750 ${cfg.user} ${cfg.group} - -"
-      ];
+      ]
+      ++ lib.optional (
+        cfg.storages.blob.storage.provider == "fs" || cfg.storages.avatar.storage.provider == "fs"
+      ) "d ${cfg.dataDir}/storage 0750 ${cfg.user} ${cfg.group} - -";
 
       services.affine-server =
         let
@@ -113,24 +116,21 @@ in
 
           preStart = ''
             # https://github.com/toeverything/AFFiNE/blob/d897bb3d84099e54a6b3c0bd5f4265f8aa87d190/packages/backend/server/src/base/config/register.ts#L284
-            ${utils.genJqSecretsReplacementSnippet cfg.settings "${
-              config.users.users.${cfg.user}.home
-            }/.affine/config/config.json"}
+            ${utils.genJqSecretsReplacementSnippet cfg.settings "${cfg.dataDir}/.affine/config/config.json"}
 
             ${cfg.package}/bin/affine-server-predeploy
           '';
 
           serviceConfig = {
             EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
-            Type = "simple";
             User = cfg.user;
             Group = cfg.group;
             WorkingDirectory = cfg.dataDir;
             ExecStart = "${cfg.package}/bin/affine-server";
             Restart = "on-failure";
             RestartSec = "5s";
+            StateDirectory = cfg.dataDir;
 
-            RuntimeDirectory = "affine-server";
             RuntimeDirectoryMode = "0700";
           };
         };

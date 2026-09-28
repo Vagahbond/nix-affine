@@ -1,23 +1,20 @@
 # https://nixos.org/manual/nixpkgs/stable/#javascript-yarn
 {
   affine,
-  cacert,
   cargo,
-  cmake,
   fetchFromGitHub,
   lib,
   makeBinaryWrapper,
   nodejs_24,
-  openssl,
   pkg-config,
   rustPlatform,
   stdenv,
   mYarn,
   yarn,
   prisma-engines_6,
-  # inputs,
   rustc,
   opus,
+  jq,
 }:
 let
   nodejs = nodejs_24;
@@ -42,16 +39,6 @@ in
 stdenv.mkDerivation (
   finalAttrs:
   let
-    nodeModulesCache = mYarn.fetchYarnBerryDeps {
-      inherit (finalAttrs) src missingHashes;
-      hash = "sha256-qOsLgyEluCX0ivMGSfIf8OZf/oA/LiFvmNe80JG7FW8=";
-    };
-
-    cargoDeps = rustPlatform.fetchCargoVendor {
-      inherit (finalAttrs) src;
-      hash = "sha256-fQY4DmkbZQljXQzWRNLzaYxdPoenWTbOtjBvqT/HFYE=";
-    };
-
     targetArch =
       if stdenv.hostPlatform.isx86_64 then
         "amd64"
@@ -68,11 +55,6 @@ stdenv.mkDerivation (
     version = "0.27.4";
     BUILD_TYPE = "stable";
 
-    dontUseCmakeConfigure = true;
-
-    NODE_EXTRA_CA_CERTS = "${cacert}/etc/ssl/certs/ca-bundle.crt";
-    SSL_CERT_FILE = "${cacert}/etc/ssl/certs/ca-bundle.crt";
-
     GITHUB_SHA = affine.rev;
 
     src = affine;
@@ -83,18 +65,23 @@ stdenv.mkDerivation (
 
     missingHashes = ./missing-hashes.json;
 
-    offlineCache = nodeModulesCache;
+    offlineCache = mYarn.fetchYarnBerryDeps {
+      inherit (finalAttrs) src missingHashes;
+      hash = "sha256-qOsLgyEluCX0ivMGSfIf8OZf/oA/LiFvmNe80JG7FW8=";
+    };
 
-    # https://github.com/NixOS/nixpkgs/issues/254369#issuecomment-2080460150
-    inherit cargoDeps;
+    cargoDeps = rustPlatform.fetchCargoVendor {
+      inherit (finalAttrs) src;
+      hash = "sha256-fQY4DmkbZQljXQzWRNLzaYxdPoenWTbOtjBvqT/HFYE=";
+    };
 
     nativeBuildInputs = [
       cargo
-      cmake
       rustc
       mYarn.yarnBerryConfigHook
+      mYarn
+      jq
       makeBinaryWrapper
-      openssl
       nodejs
       pkg-config
       rustPlatform.cargoSetupHook
@@ -102,50 +89,45 @@ stdenv.mkDerivation (
 
     buildInputs = [
       opus
-      mYarn
     ];
 
-    # TODO: run the version script
-    # https://github.com/toeverything/AFFiNE/blob/canary/.github/actions/setup-version/action.yml
     configurePhase = ''
       runHook preConfigure
 
       export ELECTRON_SKIP_BINARY_DOWNLOAD=1
-      export PRISMA_QUERY_ENGINE_BINARY=${prismaEngines}/bin/query-engine
+
       export PRISMA_QUERY_ENGINE_LIBRARY=${prismaEngines}/lib/libquery_engine.node
       export PRISMA_SCHEMA_ENGINE_BINARY=${prismaEngines}/bin/schema-engine
 
       runHook postConfigure
     '';
 
-    /**
-      server-native.node import is failing on my mac, likely because of some Rosetta confusion: built for x64 but ARM NodeJS runtime, or something like that. Too annoying to fix, especially when no one is ever going to run this on a M mac right ? RIGHT ?
-    */
     buildPhase = ''
       runHook preBuild
 
 
-      yarn affine @affine/server-native build
+      ${lib.getExe mYarn} affine @affine/server-native build
 
-      # TODO: avoid this copy (won't build server without it...)
       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.arm64.node
       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.armv7.node
       cp ./packages/backend/native/server-native.node ./packages/backend/native/server-native.x64.node
 
 
-       yarn workspace @affine/server build
+      ${lib.getExe mYarn} workspace @affine/server build
 
-       yarn affine @affine/web build
-       yarn affine @affine/admin build
-       yarn affine @affine/mobile build
+      ${lib.getExe mYarn} affine @affine/web build
+      ${lib.getExe mYarn} affine @affine/admin build
+      ${lib.getExe mYarn} affine @affine/mobile build
 
-      yarn workspaces focus @affine/server --production
-      yarn workspace @affine/server prisma generate
+      ${lib.getExe mYarn} workspaces focus @affine/server --production
+
+      ${lib.getExe mYarn} workspace @affine/server prisma generate
+
+      ./scripts/set-version.sh ${finalAttrs.version}
 
       AFFINE_DOCKER_CLEAN=1 TARGETARCH="${targetArch}" node ./packages/backend/server/scripts/docker-clean.mjs 
 
       rm -rf ./node_modules/@affine
-
 
       runHook postBuild
     '';
@@ -160,47 +142,27 @@ stdenv.mkDerivation (
       cp -r ./packages/frontend/admin/dist $out/static/admin
       cp -r ./packages/frontend/apps/mobile/dist $out/static/mobile
 
-      rm -rf $out/node_modules/@affine
-
       mkdir -p $out/bin
 
       makeBinaryWrapper ${nodejs}/bin/node $out/bin/affine-server-predeploy \
         --chdir "$out" \
         --add-flags "./scripts/self-host-predeploy.js" \
         --set-default NODE_ENV production \
-        --set-default PRISMA_QUERY_ENGINE_BINARY ${prismaEngines}/bin/query-engine \
         --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prismaEngines}/lib/libquery_engine.node \
         --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prismaEngines}/bin/schema-engine \
         --set-default DEPLOYMENT_TYPE selfhosted \
         --prefix PATH : "${
           lib.makeBinPath [
             (yarn.override { inherit nodejs; })
-            nodejs
           ]
-        }" \
-        ${lib.optionalString stdenv.isLinux "--suffix LD_LIBRARY_PATH : ${
-          lib.makeLibraryPath [
-            openssl
-            opus
-          ]
-        }"}
+        }" 
 
       makeBinaryWrapper ${nodejs}/bin/node $out/bin/affine-server \
         --chdir "$out" \
         --add-flags "dist/main.js" \
         --set-default NODE_ENV production \
-        --set-default PRISMA_QUERY_ENGINE_BINARY ${prismaEngines}/bin/query-engine \
         --set-default PRISMA_QUERY_ENGINE_LIBRARY ${prismaEngines}/lib/libquery_engine.node \
-        --set-default PRISMA_SCHEMA_ENGINE_BINARY ${prismaEngines}/bin/schema-engine \
-        --set-default DEPLOYMENT_TYPE selfhosted \
-        ${lib.optionalString stdenv.isLinux "--suffix LD_LIBRARY_PATH : ${
-          lib.makeLibraryPath [
-            openssl
-            opus
-          ]
-        }"}
-
-
+        --set-default DEPLOYMENT_TYPE selfhosted 
 
       runHook postInstall
     '';
