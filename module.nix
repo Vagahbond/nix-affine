@@ -81,7 +81,8 @@ in
         "d ${cfg.dataDir}/storage 0750 ${cfg.user} ${cfg.group} - -"
       ]
       ++ lib.optional (
-        cfg.storages.blob.storage.provider == "fs" || cfg.storages.avatar.storage.provider == "fs"
+        cfg.settings.storages.blob.storage.provider == "fs"
+        || cfg.settings.storages.avatar.storage.provider == "fs"
       ) "d ${cfg.dataDir}/storage 0750 ${cfg.user} ${cfg.group} - -";
 
       services.affine-server =
