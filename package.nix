@@ -52,7 +52,7 @@ stdenv.mkDerivation (
   in
   {
     pname = "affine-server";
-    version = "0.27.4";
+    version = "v0.27.4";
     BUILD_TYPE = "stable";
 
     GITHUB_SHA = affine.rev;
@@ -105,6 +105,7 @@ stdenv.mkDerivation (
     buildPhase = ''
       runHook preBuild
 
+      bash ./scripts/set-version.sh ${finalAttrs.version}
 
       ${lib.getExe mYarn} affine @affine/server-native build
 
@@ -123,7 +124,6 @@ stdenv.mkDerivation (
 
       ${lib.getExe mYarn} workspace @affine/server prisma generate
 
-      bash ./scripts/set-version.sh ${finalAttrs.version}
 
       AFFINE_DOCKER_CLEAN=1 TARGETARCH="${targetArch}" node ./packages/backend/server/scripts/docker-clean.mjs 
 
