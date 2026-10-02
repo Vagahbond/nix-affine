@@ -108,7 +108,7 @@ in
 
             DATABASE_URL =
               if cfg.database.createLocally then
-                "postgresql://${cfg.database.name}@localhost:${toString config.services.postgresql.settings.port}/${cfg.database.name}?host=/run/postgresql"
+                "postgresql://${cfg.database.name}@localhost:${toString config.services.postgresql.settings.port}/${cfg.database.name}?host=/run/postgresql&connection_limit=5&pool_timeout=10"
               else
                 "postgresql://${cfg.database.user}${
                   lib.optionalString (cfg.database.password != null) ":${cfg.database.password}"
