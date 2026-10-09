@@ -132,6 +132,7 @@ stdenv.mkDerivation (finalAttrs: {
     runHook preCheck
 
     ${lib.getExe mYarn} workspace @affine/server test
+    ${lib.getExe mYarn} workspace @affine-test/affine-cloud e2e
 
     runHook postCheck
   '';
